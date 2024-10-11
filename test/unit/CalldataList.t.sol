@@ -204,6 +204,52 @@ contract CalldataListUnitTest is Test {
         );
     }
 
+    function test_show_arbitraryCheck() public {
+        address[] memory targetAddresses = new address[](1);
+        targetAddresses[0] = address(lending);
+
+        bytes4[] memory selectors = new bytes4[](1);
+        selectors[0] = MockLending.deposit.selector;
+
+        /// compare first 20 bytes
+        uint16[] memory startIndexes = new uint16[](1);
+        startIndexes[0] = 4;
+
+        uint16[] memory endIndexes = new uint16[](1);
+        endIndexes[0] = 4;
+
+        bytes[][] memory checkedCalldatas = new bytes[][](1);
+        bytes[] memory checkedCalldata1 = new bytes[](1);
+        checkedCalldata1[0] = hex"";
+        checkedCalldatas[0] = checkedCalldata1;
+
+        bool[][] memory isSelfAddressChecks = new bool[][](1);
+        bool[] memory isSelfAddressCheck = new bool[](1);
+        isSelfAddressCheck[0] = false;
+        isSelfAddressChecks[0] = isSelfAddressCheck;
+
+        vm.prank(address(timelock));
+        timelock.addCalldataChecks(
+            targetAddresses,
+            selectors,
+            startIndexes,
+            endIndexes,
+            checkedCalldatas,
+            isSelfAddressChecks
+        );
+
+        // Check that the check is there
+        timelock.checkCalldata(targetAddresses[0], abi.encodePacked(selectors[0]));
+
+        // Remove it
+        vm.prank(address(timelock));
+        timelock.removeCalldataCheck(targetAddresses[0], selectors[0], 0);
+
+        // Show that now it reverts
+        vm.expectRevert();
+        timelock.checkCalldata(targetAddresses[0], abi.encodePacked(selectors[0]));
+    }
+
     function testAddCalldataCheckAndRemoveCalldataCheckDatahashSucceeds()
         public
     {
