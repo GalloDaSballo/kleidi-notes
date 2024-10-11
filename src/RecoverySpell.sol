@@ -67,7 +67,7 @@ contract RecoverySpell is EIP712("Recovery Spell", "0.1.0") {
 
     /// @notice the multicall3 contract address
     address public constant MULTICALL3 =
-        0xcA11bde05977b3631167028862bE2a173976CA11;
+        0xcA11bde05977b3631167028862bE2a173976CA11; /// @audit-ok Same addy https://www.multicall3.com/deployments
 
     /// @notice the sentinel address that all linked lists start with
     address public constant SENTINEL = address(0x1);
@@ -118,7 +118,7 @@ contract RecoverySpell is EIP712("Recovery Spell", "0.1.0") {
         owners = _owners;
         safe = Safe(payable(_safe));
         threshold = _safeThreshold;
-        recoveryThreshold = _recoveryThreshold;
+        recoveryThreshold = _recoveryThreshold; /// @audit-ok checked in factory
         delay = _delay;
 
         recoveryInitiated = block.timestamp;
@@ -137,8 +137,8 @@ contract RecoverySpell is EIP712("Recovery Spell", "0.1.0") {
         return keccak256(
             abi.encodePacked(
                 "\x19\x01",
-                _domainSeparatorV4(),
-                keccak256(
+                _domainSeparatorV4(), /// Address(this) makes it unique
+                keccak256( // Rest is not unique
                     abi.encode(
                         RECOVERY_TYPEHASH,
                         safe,
@@ -194,7 +194,7 @@ contract RecoverySpell is EIP712("Recovery Spell", "0.1.0") {
         );
 
         for (uint256 i = 0; i < owners.length; i++) {
-            address owner = owners[i];
+            address owner = owners[i]; /// @audit already demonstrated it doesn't have dups
             assembly ("memory-safe") {
                 tstore(owner, 1)
             }
@@ -217,14 +217,14 @@ contract RecoverySpell is EIP712("Recovery Spell", "0.1.0") {
 
             assembly ("memory-safe") {
                 valid := tload(recoveredAddress)
-                if eq(valid, 1) { tstore(recoveredAddress, 0) }
+                if eq(valid, 1) { tstore(recoveredAddress, 0) } /// @audit Cannot recover more than once per address
             }
 
             /// if the address of the signer was not in storage, the value will
             /// be 0 and the require will fail.
             /// if the address of the signer duplicated signatures, the value
             /// will be 0 on the second retrieval and the require will fail.
-            require(
+            require( /// @audit Pretty sure OZ does this
                 valid && recoveredAddress != address(0),
                 "RecoverySpell: Invalid signature"
             );
@@ -242,30 +242,30 @@ contract RecoverySpell is EIP712("Recovery Spell", "0.1.0") {
         ///   3). add the remaining new owners to the safe, with the
         ///   last owner being added updating the threshold to the new value
         ///   4). remove the recovery module from the safe
-        address[] memory existingOwners = safe.getOwners();
+        address[] memory existingOwners = safe.getOwners(); /// @audit shadow owners, but it's safe
         uint256 existingOwnersLength = existingOwners.length;
 
         /// + 1 is for the module removal
         /// new owner length = 1
         /// existing owner length = 1
         IMulticall3.Call3[] memory calls3 =
-            new IMulticall3.Call3[](owners.length + existingOwnersLength + 1);
+            new IMulticall3.Call3[](owners.length + existingOwnersLength + 1); // owners - 1 + existing + 2
 
         uint256 index = 0;
 
         /// build interactions
 
         /// remove all existing owners except the last one
-        for (uint256 i = 0; i < existingOwnersLength - 1; i++) {
+        for (uint256 i = 0; i < existingOwnersLength - 1; i++) { /// @audit-ok will not overflow
             calls3[index++].callData = abi.encodeWithSelector(
                 OwnerManager.removeOwner.selector,
-                SENTINEL,
+                SENTINEL, /// @audit Is this valid or could this be made to disable the spells
                 existingOwners[i],
                 1
             );
         }
 
-        calls3[index++].callData = abi.encodeWithSelector(
+        calls3[index++].callData = abi.encodeWithSelector( /// @audit ???
             OwnerManager.swapOwner.selector,
             SENTINEL,
             existingOwners[existingOwnersLength - 1],
@@ -283,9 +283,9 @@ contract RecoverySpell is EIP712("Recovery Spell", "0.1.0") {
         calls3[index++].callData = abi.encodeWithSelector(
             OwnerManager.changeThreshold.selector, threshold
         );
-
+        /// Disables itself
         calls3[index].callData = abi.encodeWithSelector(
-            ModuleManager.disableModule.selector, previousModule, address(this)
+            ModuleManager.disableModule.selector, previousModule, address(this) /// @audit could this somehow get griefed?
         );
 
         for (uint256 i = 0; i < calls3.length; i++) {
@@ -308,7 +308,7 @@ contract RecoverySpell is EIP712("Recovery Spell", "0.1.0") {
                 MULTICALL3,
                 0,
                 abi.encodeWithSelector(IMulticall3.aggregate3.selector, calls3),
-                Enum.Operation.DelegateCall
+                Enum.Operation.DelegateCall /// @audit delegateCall to aggregate 3 so you can perform the op
             ),
             "RecoverySpell: Recovery failed"
         );
