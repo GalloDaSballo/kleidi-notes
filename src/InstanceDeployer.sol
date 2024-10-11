@@ -234,7 +234,7 @@ contract InstanceDeployer {
             ),
             "InstanceDeployer: sender must be hot signer"
         );
-
+        // @audit Validation is done in _addCallDataCheck
         walletInstance.timelock.initialize(
             instance.timelockParams.contractAddresses,
             instance.timelockParams.selectors,
@@ -267,13 +267,13 @@ contract InstanceDeployer {
             /// add the timelock as a module to the safe
             /// this enables the timelock to execute calls + delegate calls through
             /// the safe
-            calls3[index++].callData = abi.encodeWithSelector(
+            calls3[index++].callData = abi.encodeWithSelector( /// @audit-ok Sets as module because you need to change configs
                 ModuleManager.enableModule.selector,
                 address(walletInstance.timelock)
             );
 
             /// enable all recovery spells in the safe by adding them as modules
-            for (uint256 i = 0; i < instance.recoverySpells.length; i++) {
+            for (uint256 i = 0; i < instance.recoverySpells.length; i++) { /// @audit Recovery spells are not validated
                 /// all recovery spells should be private at the time of safe
                 /// creation, however we cannot enforce this except by excluding
                 /// recovery spells that are not private.
@@ -285,12 +285,12 @@ contract InstanceDeployer {
                 /// chain, then a malicious user could deploy the recovery spell
                 /// before the system instance to block the instance from ever
                 /// being deployed to this chain.
-                calls3[index++].callData = abi.encodeWithSelector(
-                    ModuleManager.enableModule.selector,
+                calls3[index++].callData = abi.encodeWithSelector( /// @audit
+                    ModuleManager.enableModule.selector, /// Can just be any random module -> Flagged
                     instance.recoverySpells[i]
                 );
             }
-
+            /// @audit Removes self using previous owner flag (could use constant)
             calls3[index++].callData = abi.encodeWithSelector(
                 OwnerManager.swapOwner.selector,
                 /// previous owner
@@ -324,7 +324,7 @@ contract InstanceDeployer {
                 calls3[index++].callData = abi.encodeWithSelector(
                     OwnerManager.addOwnerWithThreshold.selector,
                     instance.owners[instance.owners.length - 1],
-                    instance.threshold
+                    instance.threshold /// @audit edge case cause it won't fail in the 1 owner case
                 );
             }
 
