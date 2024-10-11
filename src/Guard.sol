@@ -57,7 +57,7 @@ contract Guard is BaseGuard {
             /// only allow self calls to effectively cancel a transaction by
             /// using a nonce without any payload and value.
             require(data.length == 0 && value == 0, "Guard: no self calls");
-        }
+        } /// @audit what happens when the timelock does the calls? Are these validated?
         /// if delegate calls are allowed, owners or modules could be added
         /// or removed outside of the expected flow, and the only way to reason
         /// about this is to disallow delegate calls as we cannot prove unknown
