@@ -14,6 +14,7 @@ library BytesHelper {
         assembly ("memory-safe") {
             functionSignature := mload(add(toSlice, 0x20))
         }
+        return bytes4(toSlice);
     }
 
     /// @notice function to grab the first 32 bytes of returned memory
